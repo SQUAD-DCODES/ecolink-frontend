@@ -1,26 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display:ital@0;1&display=swap');
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-green-50:  #E8F5F0;
+  --color-green-100: #C3E6D8;
+  --color-green-200: #8DCDB5;
+  --color-green-500: #1D9E75;
+  --color-green-700: #0F6E56;
+  --color-green-900: #073D30;
+
+  --color-amber-50:  #FEF6E4;
+  --color-amber-200: #F9DC8A;
+  --color-amber-500: #E5A10A;
+  --color-amber-700: #9A6A05;
+
+  --color-coral-50:  #FEF0EC;
+  --color-coral-400: #E8775A;
+  --color-coral-500: #E05A34;
+  --color-coral-700: #A33E22;
+
+  --color-sand-50:  #FAFAF7;
+  --color-sand-100: #F4F3EE;
+  --color-sand-200: #E8E6DF;
+  --color-sand-300: #D2CFC5;
+  --color-sand-400: #B5B2A8;
+  --color-sand-500: #9E9B92;
+  --color-sand-700: #5C5A54;
+  --color-sand-900: #1C1B18;
+
+  --color-white: #ffffff;
+
+  --font-sans:    'DM Sans', sans-serif;
+  --font-display: 'DM Serif Display', serif;
+
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+*, *::before, *::after {
+  
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html, body {
+  font-family: 'DM Sans', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #FAFAF7 !important;
+  color: #1C1B18;
+  min-height: 100%;
+  color-scheme: light only;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D2CFC5; border-radius: 4px; }
+
+@layer utilities {
+  .font-display { font-family: 'DM Serif Display', serif; }
+
+  .card {
+    background-color: #ffffff;
+    border: 1px solid #E8E6DF;
+    border-radius: var(--radius-lg);
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  .card-hover {
+    background-color: #ffffff;
+    border: 1px solid #E8E6DF;
+    border-radius: var(--radius-lg);
+    transition: box-shadow 150ms ease, border-color 150ms ease;
+  }
+  .card-hover:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    border-color: #D2CFC5;
+  }
+
+  .text-muted  { color: #9E9B92; }
+  .text-subtle { color: #5C5A54; }
+  .bg-subtle   { background-color: #F4F3EE; }
+  .bg-page     { background-color: #FAFAF7; }
+
+  .btn-primary {
+    background-color: #0F6E56;
+    color: #ffffff;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: background-color 150ms ease, transform 80ms ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-primary:hover  { background-color: #1D9E75; }
+  .btn-primary:active { transform: scale(0.97); }
+
+  .btn-ghost {
+    background-color: transparent;
+    border: 1px solid #D2CFC5;
+    border-radius: var(--radius-full);
+    color: #1C1B18;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: background-color 150ms ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-ghost:hover { background-color: #F4F3EE; }
+
+  .badge-green {
+    background-color: #E8F5F0;
+    color: #0F6E56;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  .badge-amber {
+    background-color: #FEF6E4;
+    color: #9A6A05;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  .badge-coral {
+    background-color: #FEF0EC;
+    color: #A33E22;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  .badge-sand {
+    background-color: #F4F3EE;
+    color: #5C5A54;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+
+  /* Mobile bottom nav clearance */
+  .pb-nav { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
 }
