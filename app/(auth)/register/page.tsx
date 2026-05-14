@@ -4,11 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { authAPI } from "@/lib/api";
 
 const businessTypes = [
   { value: "trader", label: "Market trader", icon: "🛍️" },
   { value: "artisan", label: "Artisan / craftsperson", icon: "🔨" },
-  { value: "gig", label: "Gig / daily worker", icon: "⚡" },
+  { value: "gig_worker", label: "Gig / daily worker", icon: "⚡" },
   { value: "farmer", label: "Smallholder farmer", icon: "🌾" },
   { value: "other", label: "Other", icon: "💼" },
 ];
@@ -16,10 +17,34 @@ const businessTypes = [
 export default function RegisterPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", businessType: "", location: "" });
 
   function update(key: string, val: string) {
     setForm((f) => ({ ...f, [key]: val }));
+  }
+
+  async function handleCreateAccount() {
+    if (!form.location) return;
+    setLoading(true);
+    setError("");
+    try {
+      await authAPI.register({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phone: `234${form.phone}`,
+        businessType: form.businessType,
+        state: form.location,
+      });
+      // Store phone so verify page can use it
+      localStorage.setItem("ecolink_pending_phone", `234${form.phone}`);
+      router.push("/verify");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const steps = [
@@ -38,7 +63,7 @@ export default function RegisterPage() {
       >
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white">
-            <Image src="/eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
+            <Image src="/Eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
           </div>
           <span className="text-white font-semibold text-lg tracking-tight">EcoLink</span>
         </div>
@@ -61,7 +86,7 @@ export default function RegisterPage() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="flex items-center gap-2 mb-10 lg:hidden">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#E8F5F0" }}>
-            <Image src="/eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
+            <Image src="/Eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
           </div>
           <span className="font-semibold text-lg tracking-tight" style={{ color: "#1C1B18" }}>EcoLink</span>
         </div>
@@ -91,6 +116,12 @@ export default function RegisterPage() {
               </div>
             ))}
           </div>
+
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: "#FEF0EC", color: "#A33E22", border: "1px solid #E8775A" }}>
+              {error}
+            </div>
+          )}
 
           {step === 1 && (
             <div className="flex flex-col gap-4">
@@ -209,18 +240,18 @@ export default function RegisterPage() {
               <div className="rounded-xl p-4" style={{ background: "#E8F5F0", border: "1px solid #C3E6D8" }}>
                 <p className="text-xs font-semibold mb-1" style={{ color: "#0F6E56" }}>What happens next</p>
                 <p className="text-xs leading-relaxed" style={{ color: "#0F6E56", opacity: 0.8 }}>
-                  We'll create your free Squad virtual account (NUBAN) and send you a verification code.
+                  We'll send you a verification code to confirm your number.
                 </p>
               </div>
               <div className="flex gap-3 mt-2">
                 <button onClick={() => setStep(2)} className="btn-ghost flex-1 py-3 text-sm">Back</button>
                 <button
-                  onClick={() => router.push("/verify")}
-                  disabled={!form.location}
+                  onClick={handleCreateAccount}
+                  disabled={!form.location || loading}
                   className="btn-primary flex-1 py-3 text-sm"
                   style={{ opacity: !form.location ? 0.5 : 1 }}
                 >
-                  Create account
+                  {loading ? "Creating…" : "Create account"}
                 </button>
               </div>
             </div>

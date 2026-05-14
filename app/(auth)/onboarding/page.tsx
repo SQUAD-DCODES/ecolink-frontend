@@ -3,17 +3,22 @@
 import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { authAPI } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const skills = ["Sales & trading", "Delivery / logistics", "Carpentry", "Tailoring / sewing", "Cooking / catering", "Electrical work", "Plumbing", "Phone repairs", "Farming", "Cleaning", "Security / watchman", "Teaching / tutoring"];
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { refresh } = useAuth();
   const [step, setStep] = useState(0);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [pinStep, setPinStep] = useState<"set" | "confirm">("set");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   function toggleSkill(s: string) {
     setSelectedSkills((prev) =>
@@ -44,6 +49,20 @@ export default function OnboardingPage() {
     }
   }
 
+  async function handleSetPin() {
+    setLoading(true);
+    setError("");
+    try {
+      await authAPI.setupPin({ pin, skills: selectedSkills });
+      await refresh();
+      setStep(2);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to set PIN. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const currentPin = pinStep === "set" ? pin : confirmPin;
 
   const steps = [
@@ -60,7 +79,7 @@ export default function OnboardingPage() {
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#E8F5F0" }}>
-              <Image src="/eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
+              <Image src="/Eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
             </div>
             <span className="font-semibold tracking-tight" style={{ color: "#1C1B18" }}>EcoLink</span>
           </div>
@@ -74,6 +93,12 @@ export default function OnboardingPage() {
 
         <h1 className="text-2xl font-semibold mb-1" style={{ letterSpacing: "-0.02em" }}>{steps[step].title}</h1>
         <p className="text-sm text-muted mb-8">{steps[step].subtitle}</p>
+
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: "#FEF0EC", color: "#A33E22", border: "1px solid #E8775A" }}>
+            {error}
+          </div>
+        )}
 
         {/* Step 0: Skills */}
         {step === 0 && (
@@ -155,8 +180,12 @@ export default function OnboardingPage() {
             </div>
 
             {confirmPin.length === 4 && confirmPin === pin && (
-              <button onClick={() => setStep(2)} className="btn-primary w-full max-w-xs py-3 text-sm">
-                Set PIN & continue
+              <button
+                onClick={handleSetPin}
+                disabled={loading}
+                className="btn-primary w-full max-w-xs py-3 text-sm"
+              >
+                {loading ? "Setting up…" : "Set PIN & continue"}
               </button>
             )}
           </div>
@@ -172,9 +201,9 @@ export default function OnboardingPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold">Squad virtual account created</p>
-                <p className="text-xs text-muted mt-0.5">NUBAN: 0123 456 789 · Wema Bank</p>
-                <p className="text-xs mt-1" style={{ color: "#0F6E56" }}>You can now receive money at this number</p>
+                <p className="text-sm font-semibold">Account created successfully</p>
+                <p className="text-xs text-muted mt-0.5">Your EcoLink profile is ready</p>
+                <p className="text-xs mt-1" style={{ color: "#0F6E56" }}>Complete KYC to unlock your Squad virtual account</p>
               </div>
             </div>
 
@@ -200,7 +229,7 @@ export default function OnboardingPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold">3 job matches found</p>
+                <p className="text-sm font-semibold">Job matches loading</p>
                 <p className="text-xs text-muted mt-0.5">Based on your skills and location</p>
               </div>
             </div>

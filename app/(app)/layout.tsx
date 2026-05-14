@@ -11,7 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           @media (min-width: 1024px) { .content-area { margin-left: 240px; } }
         `}</style>
         <main className="content-area flex-1 pb-nav md:pb-0" style={{ background: "#FAFAF7" }}>
-          {children}
+            {children}
         </main>
         <BottomNav />
       </div>

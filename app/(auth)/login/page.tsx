@@ -4,23 +4,36 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
   const [step, setStep] = useState<"phone" | "pin">("phone");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   function handlePhoneSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (phone.length >= 10) setStep("pin");
   }
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (pin.length < 4) return;
     setLoading(true);
-    setTimeout(() => router.push("/"), 1200);
+    setError("");
+    try {
+      await login(`234${phone}`, pin);
+      router.push("/");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed. Check your PIN.");
+      setPin("");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -33,7 +46,7 @@ export default function LoginPage() {
       >
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-white">
-            <Image src="/eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
+            <Image src="/Eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
           </div>
           <span className="text-white font-semibold text-lg tracking-tight">EcoLink</span>
         </div>
@@ -73,7 +86,7 @@ export default function LoginPage() {
         {/* Mobile logo */}
         <div className="flex items-center gap-2 mb-10 lg:hidden">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#E8F5F0" }}>
-            <Image src="/eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
+            <Image src="/Eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
           </div>
           <span className="font-semibold text-lg tracking-tight" style={{ color: "#1C1B18" }}>EcoLink</span>
         </div>
@@ -87,6 +100,12 @@ export default function LoginPage() {
               ? "Sign in with your phone number"
               : `Signing in as +234 ${phone.slice(-10)}`}
           </p>
+
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: "#FEF0EC", color: "#A33E22", border: "1px solid #E8775A" }}>
+              {error}
+            </div>
+          )}
 
           {step === "phone" ? (
             <form onSubmit={handlePhoneSubmit} className="flex flex-col gap-4">
@@ -140,7 +159,6 @@ export default function LoginPage() {
                     </div>
                   ))}
                 </div>
-                {/* Hidden real input */}
                 <input
                   type="password"
                   inputMode="numeric"
@@ -185,7 +203,7 @@ export default function LoginPage() {
                 {loading ? "Signing in…" : "Sign in"}
               </button>
 
-              <button type="button" onClick={() => { setStep("phone"); setPin(""); }} className="text-sm text-muted text-center">
+              <button type="button" onClick={() => { setStep("phone"); setPin(""); setError(""); }} className="text-sm text-muted text-center">
                 ← Change number
               </button>
             </form>

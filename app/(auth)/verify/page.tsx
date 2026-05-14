@@ -1,14 +1,22 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { authAPI, setToken } from "@/lib/api";
 
 export default function VerifyPage() {
   const router = useRouter();
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [resent, setResent] = useState(false);
+  const [error, setError] = useState("");
+  const [phone, setPhone] = useState("");
+
+  useEffect(() => {
+    const p = localStorage.getItem("ecolink_pending_phone") || "";
+    setPhone(p);
+  }, []);
 
   function handleChange(i: number, val: string) {
     if (!/^\d*$/.test(val)) return;
@@ -26,21 +34,40 @@ export default function VerifyPage() {
     }
   }
 
-  function handleVerify(e: React.FormEvent) {
+  async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
     if (otp.join("").length < 6) return;
     setLoading(true);
-    setTimeout(() => router.push("/onboarding"), 1200);
+    setError("");
+    try {
+      const res = await authAPI.verifyOtp({ phone, otp: otp.join("") });
+      setToken(res.data.token);
+      router.push("/onboarding");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Invalid code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    try {
+      await authAPI.resendOtp({ phone });
+      setResent(true);
+    } catch {
+      setError("Could not resend. Please try again.");
+    }
   }
 
   const filled = otp.join("").length;
+  const displayPhone = phone ? phone.replace("234", "+234 ") : "+234 …";
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6" style={{ background: "#FAFAF7" }}>
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2 mb-12">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#E8F5F0" }}>
-            <Image src="/eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
+            <Image src="/Eco.png" alt="EcoLink" width={26} height={26} style={{ objectFit: "contain" }} />
           </div>
           <span className="font-semibold tracking-tight" style={{ color: "#1C1B18" }}>EcoLink</span>
         </div>
@@ -53,8 +80,14 @@ export default function VerifyPage() {
 
         <h1 className="text-2xl font-semibold mb-1" style={{ letterSpacing: "-0.02em" }}>Check your messages</h1>
         <p className="text-sm text-muted mb-8">
-          We sent a 6-digit code to <span className="font-medium" style={{ color: "#1C1B18" }}>+234 801 234 5678</span>. It expires in 10 minutes.
+          We sent a 6-digit code to <span className="font-medium" style={{ color: "#1C1B18" }}>{displayPhone}</span>. It expires in 10 minutes.
         </p>
+
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-xl text-sm" style={{ background: "#FEF0EC", color: "#A33E22", border: "1px solid #E8775A" }}>
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleVerify} className="flex flex-col gap-6">
           <div className="flex gap-2 justify-between">
@@ -95,11 +128,11 @@ export default function VerifyPage() {
           ) : (
             <button
               type="button"
-              onClick={() => setResent(true)}
+              onClick={handleResend}
               className="text-sm font-medium"
               style={{ color: "#0F6E56" }}
             >
-              Didn't receive it? Resend code
+              Didn&apos;t receive it? Resend code
             </button>
           )}
         </div>
