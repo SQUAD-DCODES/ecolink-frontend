@@ -15,17 +15,19 @@ const catBadge: Record<string, { bg: string; color: string; label: string }> = {
 };
 
 export default function WalletPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [balance, setBalance] = useState("0.00");
   const [loading, setLoading] = useState(true);
 
+
   useEffect(() => {
-    walletAPI.balance().then((r) => setBalance(r.data.balance_naira || "0.00")).catch(() => {});
-    walletAPI.transactions({ limit: 50 }).then((r) => {
-      setTransactions(r.data.transactions || []);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  if (authLoading || !user) return;
+  walletAPI.balance().then((r) => setBalance(r.data.balance_naira || "0.00")).catch(() => {});
+  walletAPI.transactions({ limit: 50 }).then((r) => {
+    setTransactions(r.data.transactions || []);
+  }).catch(() => {}).finally(() => setLoading(false));
+  }, [user, authLoading]);
 
   return (
     <div style={{ background: "#FAFAF7", minHeight: "100vh" }}>

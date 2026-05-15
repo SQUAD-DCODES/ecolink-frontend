@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { creditAPI } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 export default function CreditPage() {
   const [scoreData, setScoreData] = useState<any>(null);
   const [offers, setOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
+    if (authLoading || !user) return;
     creditAPI.score().then((r) => setScoreData(r.data)).catch(() => {});
     creditAPI.offers().then((r) => setOffers(r.data.offers || [])).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+  }, [user, authLoading]);
 
   const overallScore = scoreData?.score || 0;
   const circumference = 2 * Math.PI * 54;
