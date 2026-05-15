@@ -3,8 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth";
 
 const navItems = [
+  // ... same as before (no changes)
   {
     href: "/",
     label: "Dashboard",
@@ -91,11 +93,37 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { user, loading } = useAuth();
 
   function isActive(href: string, exact: boolean) {
     if (exact) return pathname === href;
     return pathname.startsWith(href);
   }
+
+  // Get user's display name
+  const displayName = user
+    ? user.firstName && user.lastName
+      ? `${user.firstName} ${user.lastName}`
+      : user.businessName || user.phone || "User"
+    : "Loading...";
+
+  // Get user's role/type
+  const userRole = user?.businessType
+    ? user.businessType === "trader"
+      ? "Market trader"
+      : user.businessType === "artisan"
+      ? "Artisan"
+      : user.businessType === "gig_worker"
+      ? "Gig worker"
+      : user.businessType === "farmer"
+      ? "Smallholder farmer"
+      : user.businessType
+    : "Member";
+
+  // Get initials for avatar
+  const initials = user
+    ? (user.firstName?.[0] || "") + (user.lastName?.[0] || "") || (user.businessName?.[0] || user.phone?.[0] || "U")
+    : "U";
 
   return (
     <aside
@@ -108,7 +136,6 @@ export default function Sidebar() {
     >
       {/* Brand */}
       <div className="flex items-center gap-3 px-4 py-4" style={{ borderBottom: "1px solid #E8E6DF", minHeight: "64px" }}>
-        {/* Icon-only on md, full lockup on lg */}
         <Image
           src="/eco.png"
           alt="EcoLink"
@@ -172,17 +199,21 @@ export default function Sidebar() {
           <p className="text-xs text-muted">Virtual accounts · Payments</p>
         </div>
 
-        {/* User */}
+        {/* User info from auth */}
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: "#F4F3EE" }}>
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
             style={{ background: "#0F6E56" }}
           >
-            AO
+            {loading ? "..." : initials.toUpperCase()}
           </div>
           <div className="lg:block hidden min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: "#1C1B18" }}>Amaka Obi</p>
-            <p className="text-xs text-muted">Market trader</p>
+            <p className="text-sm font-medium truncate" style={{ color: "#1C1B18" }}>
+              {loading ? "Loading..." : displayName}
+            </p>
+            <p className="text-xs text-muted truncate">
+              {loading ? "Please wait" : userRole}
+            </p>
           </div>
         </div>
       </div>
