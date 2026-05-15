@@ -21,9 +21,10 @@ export default function ProfilePage() {
   const initials = user ? `${user.firstName?.[0] || ""}${user.lastName?.[0] || ""}`.toUpperCase() : "?";
 
   useEffect(() => {
+    if (!user) return;
     creditAPI.score().then((r) => setCreditData(r.data)).catch(() => {});
     vouchAPI.received().then((r) => setVouches(r.data.vouches || [])).catch(() => {});
-  }, []);
+  }, [user]);
 
   const trustSignals = creditData?.factors ? Object.values(creditData.factors) as any[] : [];
 
