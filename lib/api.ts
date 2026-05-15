@@ -79,6 +79,7 @@ export const walletAPI = {
 
   ussd: (body: { amount: number; bankCode: string }) =>
     api("/wallet/ussd", { method: "POST", body: JSON.stringify(body) }),
+  banks: () => api("/wallet/banks"),
 };
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────
