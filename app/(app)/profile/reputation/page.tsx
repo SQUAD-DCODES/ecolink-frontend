@@ -1,34 +1,8 @@
+"use client";
+
 import Link from "next/link";
-
-const vouches = [
-  {
-    id: 1, voucher: "Bola Taiwo", initials: "BT", relation: "Market neighbour", language: "Yoruba",
-    duration: "0:28", excerpt: "Amaka is very reliable — she has been selling in this market for 8 years and always pays on time. I have never seen her default on anything.",
-    signals: ["Reliable", "Pays on time"], trust: "Trusted", ago: "2 days ago", color: "#1D9E75",
-  },
-  {
-    id: 2, voucher: "Alhaji Musa Dankwa", initials: "AM", relation: "Supplier", language: "Hausa",
-    duration: "0:24", excerpt: "Na san ta tsawon shekaru biyar. Koyaushe tana biyan kuɗi ba tare da jinkiri ba. Mai mutunci sosai.",
-    signals: ["Honest", "Long-term"], trust: "Verified", ago: "5 days ago", color: "#9A6A05",
-  },
-  {
-    id: 3, voucher: "Ngozi Eze", initials: "NE", relation: "Former employer", language: "Igbo",
-    duration: "0:30", excerpt: "Amaka jiọrọ m ọrụ n'ụlọ ahịa m kemgbe 2019. Ọ bụ onye kwesịrị ntụkwasị obi nke ukwuu.",
-    signals: ["Hardworking", "Trustworthy"], trust: "Trusted", ago: "1 week ago", color: "#0F6E56",
-  },
-  {
-    id: 4, voucher: "Emeka Okafor", initials: "EO", relation: "Gig client", language: "Pidgin",
-    duration: "0:22", excerpt: "E be like say this woman no know how to fail. She do gig for me three times and every time she deliver on point.",
-    signals: ["Delivers on time", "Recommended"], trust: "Community", ago: "2 weeks ago", color: "#E5A10A",
-  },
-];
-
-const aiBreakdown = [
-  { label: "Payment reliability", value: 92, color: "#1D9E75" },
-  { label: "Honesty & integrity", value: 88, color: "#1D9E75" },
-  { label: "Work ethic", value: 84, color: "#E5A10A" },
-  { label: "Community standing", value: 79, color: "#E5A10A" },
-];
+import { useEffect, useMemo, useState } from "react";
+import { reputationAPI } from "@/lib/api";
 
 const trustBadgeStyle: Record<string, { bg: string; color: string }> = {
   Trusted:   { bg: "#E8F5F0", color: "#0F6E56" },
@@ -38,7 +12,90 @@ const trustBadgeStyle: Record<string, { bg: string; color: string }> = {
 
 const waveHeights = [4,8,14,10,18,12,20,16,10,14,8,18,12,6,16,10,20,14,8,12];
 
+type ReputationSignal = {
+  label: string;
+  score: number;
+  evidence?: string;
+};
+
+type RecentVouch = {
+  voucherName?: string;
+  language?: string;
+  aiSummary?: string;
+  createdAt?: string;
+  trustLevel?: string;
+};
+
+type ReputationSummary = {
+  overallScore?: number;
+  tier?: string;
+  vouchCount?: number;
+  aiSignals?: ReputationSignal[];
+  recentVouches?: RecentVouch[];
+};
+
+const accentPalette = ["#1D9E75", "#0F6E56", "#E5A10A", "#5C5A54", "#A33E22"];
+
+function getInitials(name?: string) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] || "";
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return `${first}${last}`.toUpperCase() || "?";
+}
+
+function formatAgo(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
+}
+
 export default function ReputationPage() {
+  const [summary, setSummary] = useState<ReputationSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    reputationAPI.me()
+      .then((res) => {
+        if (!mounted) return;
+        setSummary(res.data ?? res);
+      })
+      .catch((err: unknown) => {
+        if (!mounted) return;
+        setError(err instanceof Error ? err.message : "Failed to load reputation.");
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const tier = summary?.tier || "Community";
+  const overallScore = summary?.overallScore ?? 0;
+  const vouchCount = summary?.vouchCount ?? 0;
+  const aiSignals = summary?.aiSignals ?? [];
+  const recentVouches = summary?.recentVouches ?? [];
+
+  const tierLabel = useMemo(() => {
+    if (tier === "Trusted") return "Gold trust level";
+    if (tier === "Verified") return "Verified trust level";
+    return "Community trust level";
+  }, [tier]);
+
   return (
     <div style={{ background: "#FAFAF7", minHeight: "100vh" }}>
 
@@ -66,6 +123,11 @@ export default function ReputationPage() {
       </header>
 
       <div className="px-6 py-6" style={{ maxWidth: "1280px", margin: "0 auto" }}>
+        {error && (
+          <div className="mb-5 px-4 py-3 rounded-xl text-sm" style={{ background: "#FEF0EC", color: "#A33E22", border: "1px solid #E8775A" }}>
+            {error}
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Left: overall score + AI breakdown */}
@@ -79,18 +141,18 @@ export default function ReputationPage() {
                   className="w-20 h-20 rounded-full flex items-center justify-center text-4xl font-bold flex-shrink-0"
                   style={{ background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)" }}
                 >
-                  86
+                  {overallScore}
                 </div>
                 <div>
                   <div className="flex gap-0.5 mb-1.5">
                     {[1,2,3,4,5].map((i) => (
-                      <svg key={i} width="14" height="14" viewBox="0 0 24 24" fill={i <= 4 ? "#F9DC8A" : "rgba(255,255,255,0.3)"} stroke="none">
+                      <svg key={i} width="14" height="14" viewBox="0 0 24 24" fill={i <= Math.max(1, Math.round(overallScore / 20)) ? "#F9DC8A" : "rgba(255,255,255,0.3)"} stroke="none">
                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                       </svg>
                     ))}
                   </div>
-                  <p className="text-sm font-semibold">Gold trust level</p>
-                  <p className="text-xs mt-0.5" style={{ opacity: 0.7 }}>4 vocal vouches</p>
+                  <p className="text-sm font-semibold">{tierLabel}</p>
+                  <p className="text-xs mt-0.5" style={{ opacity: 0.7 }}>{vouchCount} vocal vouches</p>
                 </div>
               </div>
               <p className="text-xs" style={{ opacity: 0.65 }}>
@@ -101,19 +163,28 @@ export default function ReputationPage() {
             {/* AI signal breakdown */}
             <div className="card p-5">
               <h2 className="text-sm font-semibold mb-4">AI-extracted signals</h2>
-              <div className="flex flex-col gap-4">
-                {aiBreakdown.map((s) => (
-                  <div key={s.label}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs font-medium">{s.label}</p>
-                      <span className="text-xs font-bold" style={{ color: s.color }}>{s.value}</span>
-                    </div>
-                    <div className="h-2 rounded-full" style={{ background: "#F4F3EE" }}>
-                      <div className="h-2 rounded-full" style={{ width: `${s.value}%`, background: s.color }}/>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {loading ? (
+                <p className="text-sm text-muted">Loading signals…</p>
+              ) : aiSignals.length === 0 ? (
+                <p className="text-sm text-muted">No AI signals yet.</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {aiSignals.map((s, i) => {
+                    const color = s.score >= 80 ? "#1D9E75" : s.score >= 65 ? "#E5A10A" : "#A33E22";
+                    return (
+                      <div key={`${s.label}-${i}`}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-xs font-medium">{s.label}</p>
+                          <span className="text-xs font-bold" style={{ color }}>{Math.round(s.score)}</span>
+                        </div>
+                        <div className="h-2 rounded-full" style={{ background: "#F4F3EE" }}>
+                          <div className="h-2 rounded-full" style={{ width: `${Math.min(100, Math.max(0, s.score))}%`, background: color }}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Add vouch CTA */}
@@ -138,58 +209,60 @@ export default function ReputationPage() {
 
           {/* Right: vouch cards */}
           <div className="lg:col-span-2">
-            <h2 className="text-sm font-semibold mb-4">Voice vouches ({vouches.length})</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {vouches.map((v) => {
-                const badge = trustBadgeStyle[v.trust] ?? trustBadgeStyle.Community;
-                return (
-                  <div key={v.id} className="card p-5 flex flex-col gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: v.color }}>
-                        {v.initials}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <p className="text-sm font-semibold">{v.voucher}</p>
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>
-                            {v.trust}
-                          </span>
+            <h2 className="text-sm font-semibold mb-4">Voice vouches ({recentVouches.length})</h2>
+            {loading ? (
+              <div className="text-sm text-muted">Loading vouches…</div>
+            ) : recentVouches.length === 0 ? (
+              <div className="card p-6 text-sm text-muted">No vouches yet.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recentVouches.map((v, index) => {
+                  const initials = getInitials(v.voucherName);
+                  const accent = accentPalette[index % accentPalette.length];
+                  const trust = v.trustLevel || tier;
+                  const badge = trustBadgeStyle[trust] ?? trustBadgeStyle.Community;
+                  const createdAgo = formatAgo(v.createdAt);
+                  return (
+                    <div key={`${v.voucherName}-${v.createdAt}-${index}`} className="card p-5 flex flex-col gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0" style={{ background: accent }}>
+                          {initials}
                         </div>
-                        <p className="text-xs text-muted">{v.relation} · {v.language} · {v.ago}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                            <p className="text-sm font-semibold">{v.voucherName || "Community member"}</p>
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badge.bg, color: badge.color }}>
+                              {trust}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted">{v.language || "Unknown"}{createdAgo ? ` · ${createdAgo}` : ""}</p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-subtle leading-relaxed italic">"{v.aiSummary || "Vouch received. Awaiting summary."}"</p>
+
+                      <div className="pt-3" style={{ borderTop: "1px solid #F4F3EE" }}>
+                        <div className="flex items-end gap-0.5 mb-2" style={{ height: "18px" }}>
+                          {waveHeights.map((h, i) => (
+                            <div key={i} className="flex-1 rounded-full" style={{ height: `${h}px`, background: i < 10 ? "#1D9E75" : "#E8E6DF" }}/>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <button
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+                            style={{ background: "#E8F5F0", color: "#0F6E56" }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+                            Play · 0:30
+                          </button>
+                          <span className="text-xs text-muted">{v.language || ""}</span>
+                        </div>
                       </div>
                     </div>
-
-                    <p className="text-xs text-subtle leading-relaxed italic">"{v.excerpt}"</p>
-
-                    <div className="flex flex-wrap gap-1.5">
-                      {v.signals.map((sig) => (
-                        <span key={sig} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#E8F5F0", color: "#0F6E56" }}>
-                          ✓ {sig}
-                        </span>
-                      ))}
-                    </div>
-
-                    <div className="pt-3" style={{ borderTop: "1px solid #F4F3EE" }}>
-                      <div className="flex items-end gap-0.5 mb-2" style={{ height: "18px" }}>
-                        {waveHeights.map((h, i) => (
-                          <div key={i} className="flex-1 rounded-full" style={{ height: `${h}px`, background: i < 10 ? "#1D9E75" : "#E8E6DF" }}/>
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <button
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
-                          style={{ background: "#E8F5F0", color: "#0F6E56" }}
-                        >
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
-                          Play · {v.duration}
-                        </button>
-                        <span className="text-xs text-muted">{v.language}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>

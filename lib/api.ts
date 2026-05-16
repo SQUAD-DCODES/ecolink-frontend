@@ -186,11 +186,18 @@ export const profileAPI = {
 // ── Vouch ─────────────────────────────────────────────────────────────────────
 
 export const vouchAPI = {
-  submit: (body: { recipientPhone: string; audioUrl: string; durationSeconds: number; language: string }) =>
+  submit: (body: { recipientPhone: string; audioUrl: string; durationSeconds: number; language: string; transcript?: string }) =>
     api("/vouch", { method: "POST", body: JSON.stringify(body) }),
 
   received: () => api("/vouch/received"),
   given: () => api("/vouch/given"),
 
   forUser: (userId: string) => api(`/vouch/user/${userId}`),
+};
+
+// ── Reputation ─────────────────────────────────────────────────────────────
+
+export const reputationAPI = {
+  me: () => api("/reputation/me"),
+  get: (userId: string) => api(`/reputation/${userId}`),
 };
