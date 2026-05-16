@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { walletAPI } from "@/lib/api";
 
@@ -49,7 +49,17 @@ export default function SendMoneyPage() {
         amount: parseInt(amount),
         note,
       });
+      if (!res.success) {
+        throw new Error("Transfer failed");
+      }
+
       setTxRef(res.data.transactionReference || "");
+
+      if (res.data.pending) {
+        setError("Transfer is still processing...");
+        return;
+      }
+
       setStep("done");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Transfer failed. Please try again.");
@@ -58,14 +68,18 @@ export default function SendMoneyPage() {
     }
   }
 
-  const banks = [
-    { code: "000013", name: "GTBank" },
-    { code: "000014", name: "Access Bank" },
-    { code: "000015", name: "Zenith Bank" },
-    { code: "000016", name: "First Bank" },
-    { code: "000004", name: "UBA" },
-    { code: "000017", name: "Wema Bank" },
-  ];
+  const [banks, setBanks] = useState<
+    { bank_code: string; bank_name: string }[]
+  >([]);
+
+  useEffect(() => {
+    walletAPI
+      .banks()
+      .then((res) => {
+        setBanks(res.data || []);
+      })
+      .catch(console.error);
+  }, []);
 
   if (step === "done") {
     return (
@@ -149,7 +163,11 @@ export default function SendMoneyPage() {
                 className="w-full px-4 py-3 rounded-xl text-sm outline-none mb-3"
                 style={{ border: "1px solid #E8E6DF", background: "#fff", color: "#1C1B18" }}
               >
-                {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+                {banks.map((b) => (
+                  <option key={b.bank_code} value={b.bank_code}>
+                    {b.bank_name}
+                  </option>
+                ))}
               </select>
 
               <label className="block text-xs font-semibold text-subtle mb-2 uppercase tracking-wide">Account number</label>

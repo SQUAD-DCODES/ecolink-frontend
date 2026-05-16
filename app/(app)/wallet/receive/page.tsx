@@ -36,7 +36,12 @@ export default function ReceivePage() {
     setError("");
     try {
       const res = await walletAPI.paymentLink({ amount: Number(requestAmount), description: requestNote });
-      const link = res.data?.paymentLink?.data?.link || `pay.ecolink.ng/${user?.customerIdentifier}`;
+      const link = res.data?.paymentLink;
+
+      if (!link) {
+        throw new Error("Payment link was not returned");
+      }
+
       setGeneratedLink(link);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not generate link. Try again.");
@@ -135,14 +140,46 @@ export default function ReceivePage() {
               </div>
 
               {generatedLink ? (
-                <div>
-                  <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl mb-2" style={{ background: "#F4F3EE", border: "1px solid #E8E6DF" }}>
-                    <span className="text-xs text-muted flex-1 truncate">{generatedLink}</span>
-                    <button onClick={copyLink} className="px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0" style={{ background: linkCopied ? "#E8F5F0" : "#ffffff", color: linkCopied ? "#0F6E56" : "#5C5A54", border: "1px solid #E8E6DF" }}>
+                <div className="flex flex-col gap-3">
+                  <a
+                    href={generatedLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary py-3 text-sm text-center"
+                  >
+                    Open payment page
+                  </a>
+
+                  <div
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                    style={{
+                      background: "#F4F3EE",
+                      border: "1px solid #E8E6DF",
+                    }}
+                  >
+                    <span className="text-xs text-muted flex-1 truncate">
+                      {generatedLink}
+                    </span>
+
+                    <button
+                      onClick={copyLink}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0"
+                      style={{
+                        background: linkCopied ? "#E8F5F0" : "#ffffff",
+                        color: linkCopied ? "#0F6E56" : "#5C5A54",
+                        border: "1px solid #E8E6DF",
+                      }}
+                    >
                       {linkCopied ? "Copied!" : "Copy"}
                     </button>
                   </div>
-                  <button onClick={() => setGeneratedLink("")} className="btn-ghost w-full py-2 text-xs">Generate new link</button>
+
+                  <button
+                    onClick={() => setGeneratedLink("")}
+                    className="btn-ghost w-full py-2 text-xs"
+                  >
+                    Generate new link
+                  </button>
                 </div>
               ) : (
                 <button onClick={handleGenerateLink} disabled={!requestAmount || generating} className="btn-primary py-3 text-sm" style={{ opacity: !requestAmount ? 0.5 : 1 }}>
