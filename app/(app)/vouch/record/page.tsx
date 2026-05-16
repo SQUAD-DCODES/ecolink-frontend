@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { vouchAPI } from "@/lib/api";
 
 const languages = [
-  { code: "pidgin", label: "Pidgin", flag: "🇳🇬" },
-  { code: "yoruba", label: "Yoruba", flag: "🇳🇬" },
-  { code: "igbo", label: "Igbo", flag: "🇳🇬" },
-  { code: "hausa", label: "Hausa", flag: "🇳🇬" },
-  { code: "english", label: "English", flag: "🌐" },
+  { code: "pidgin",  label: "Pidgin",  flag: "🇳🇬" },
+  { code: "yoruba",  label: "Yoruba",  flag: "🇳🇬" },
+  { code: "igbo",    label: "Igbo",    flag: "🇳🇬" },
+  { code: "hausa",   label: "Hausa",   flag: "🇳🇬" },
+  { code: "english", label: "English", flag: "🌐"  },
 ];
 
 const prompts = [
@@ -23,34 +23,121 @@ const staticWave = [4,8,14,10,18,12,20,16,10,14,8,18,12,6,16,10,20,14,8,12,16,12
 
 type RecordState = "idle" | "recording" | "done";
 
-export default function RecordVouchPage() {
-  const [lang, setLang] = useState("pidgin");
-  const [state, setState] = useState<RecordState>("idle");
-  const [seconds, setSeconds] = useState(0);
-  const [recipientPhone, setRecipientPhone] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [timer, setTimer] = useState<NodeJS.Timeout | null>(null);
+async function uploadToCloudinary(blob: Blob): Promise<string> {
+  const form = new FormData();
+  form.append("file", blob, "vouch.webm");
+  form.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET!);
 
-  function handleRecord() {
-    if (state === "idle") {
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/video/upload`,
+    { method: "POST", body: form },
+  );
+  if (!res.ok) throw new Error("Audio upload failed");
+  const data = await res.json();
+  return data.secure_url as string;
+}
+
+async function fetchTranscript(blob: Blob, language: string): Promise<string> {
+  const form = new FormData();
+  form.append("file", blob, "vouch.webm");
+  form.append("language", language);
+  const res = await fetch("/api/transcribe", { method: "POST", body: form });
+  if (!res.ok) return "";
+  const data = await res.json();
+  return (data.transcript as string) || "";
+}
+
+export default function RecordVouchPage() {
+  const [lang, setLang]                   = useState("pidgin");
+  const [state, setState]                 = useState<RecordState>("idle");
+  const [seconds, setSeconds]             = useState(0);
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [submitted, setSubmitted]         = useState(false);
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState("");
+  const [audioBlob, setAudioBlob]         = useState<Blob | null>(null);
+  const [transcript, setTranscript]       = useState("");
+  const [transcribing, setTranscribing]   = useState(false);
+
+  const mediaRef  = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream  | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef  = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  async function startRecording() {
+    setError("");
+    const recordingLang = lang; // capture at start; lang selection is locked during recording
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+
+      const recorder = new MediaRecorder(stream);
+      mediaRef.current = recorder;
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        setAudioBlob(blob);
+        stream.getTracks().forEach(t => t.stop());
+        setState("done");
+
+        // Transcribe in background so user sees result before submitting
+        setTranscribing(true);
+        try {
+          const text = await fetchTranscript(blob, recordingLang);
+          setTranscript(text);
+        } catch {
+          setTranscript("");
+        } finally {
+          setTranscribing(false);
+        }
+      };
+
+      recorder.start();
       setState("recording");
+
       const start = Date.now();
-      const t = setInterval(() => {
+      timerRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - start) / 1000);
         setSeconds(elapsed);
         if (elapsed >= 30) {
-          clearInterval(t);
-          setState("done");
+          clearInterval(timerRef.current!);
+          mediaRef.current?.stop();
           setSeconds(30);
         }
       }, 250);
-      setTimer(t);
-    } else if (state === "recording") {
-      if (timer) clearInterval(timer);
-      setState("done");
+    } catch {
+      setError("Microphone access denied. Please allow microphone access and try again.");
     }
+  }
+
+  function stopRecording() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    mediaRef.current?.stop();
+  }
+
+  function handleRecord() {
+    if (state === "idle") startRecording();
+    else if (state === "recording") stopRecording();
+  }
+
+  function handleRetake() {
+    setState("idle");
+    setSeconds(0);
+    setAudioBlob(null);
+    setTranscript("");
+    setError("");
   }
 
   async function handleSubmit() {
@@ -58,14 +145,20 @@ export default function RecordVouchPage() {
       setError("Please enter the recipient's phone number.");
       return;
     }
+    if (!audioBlob) {
+      setError("No audio recorded.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
+      const audioUrl = await uploadToCloudinary(audioBlob);
       await vouchAPI.submit({
         recipientPhone: `234${recipientPhone.replace(/\D/g, "")}`,
-        audioUrl: "pending_upload",
+        audioUrl,
         durationSeconds: seconds,
         language: lang,
+        transcript: transcript || undefined,
       });
       setSubmitted(true);
     } catch (err: unknown) {
@@ -144,12 +237,24 @@ export default function RecordVouchPage() {
               <p className="text-xs text-muted mt-2">Enter the phone number of the person you want to vouch for.</p>
             </div>
 
-            {/* Language selector */}
+            {/* Language selector — disabled while recording */}
             <div className="card p-5">
               <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-3">Record in</p>
               <div className="flex flex-wrap gap-2">
                 {languages.map((l) => (
-                  <button key={l.code} onClick={() => setLang(l.code)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium" style={{ background: lang === l.code ? "#0F6E56" : "#F4F3EE", color: lang === l.code ? "#fff" : "#5C5A54", border: lang === l.code ? "none" : "1px solid #E8E6DF" }}>
+                  <button
+                    key={l.code}
+                    onClick={() => state === "idle" && setLang(l.code)}
+                    disabled={state === "recording"}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium"
+                    style={{
+                      background: lang === l.code ? "#0F6E56" : "#F4F3EE",
+                      color:      lang === l.code ? "#fff"    : "#5C5A54",
+                      border:     lang === l.code ? "none"    : "1px solid #E8E6DF",
+                      opacity:    state === "recording" ? 0.5 : 1,
+                      cursor:     state === "recording" ? "not-allowed" : "pointer",
+                    }}
+                  >
                     <span>{l.flag}</span>{l.label}
                   </button>
                 ))}
@@ -174,25 +279,36 @@ export default function RecordVouchPage() {
           <div className="card p-8 flex flex-col items-center gap-6">
             <div className="text-center">
               <h2 className="text-base font-semibold mb-1">
-                {state === "idle" && "Ready to record"}
+                {state === "idle"      && "Ready to record"}
                 {state === "recording" && "Recording…"}
-                {state === "done" && "Voice note captured"}
+                {state === "done"      && "Voice note captured"}
               </h2>
               <p className="text-sm text-muted">
-                {state === "idle" && "Tap the mic to start. Up to 30 seconds."}
+                {state === "idle"      && "Tap the mic to start. Up to 30 seconds."}
                 {state === "recording" && "Tap again to stop recording early."}
-                {state === "done" && "Review and submit your vouch below."}
+                {state === "done"      && "Review your transcript and submit below."}
               </p>
             </div>
 
-            {error && <div className="w-full px-4 py-3 rounded-xl text-sm" style={{ background: "#FEF0EC", color: "#A33E22" }}>{error}</div>}
+            {error && (
+              <div className="w-full px-4 py-3 rounded-xl text-sm" style={{ background: "#FEF0EC", color: "#A33E22" }}>
+                {error}
+              </div>
+            )}
 
             <div className="w-full">
               <div className="flex justify-between text-xs text-muted mb-2">
                 <span>{seconds}s recorded</span><span>30s max</span>
               </div>
               <div className="h-2 rounded-full w-full" style={{ background: "#F4F3EE" }}>
-                <div className="h-2 rounded-full" style={{ width: `${progressPct}%`, background: state === "recording" ? "#E05A34" : "#1D9E75", transition: "width 0.25s linear" }}/>
+                <div
+                  className="h-2 rounded-full"
+                  style={{
+                    width:      `${progressPct}%`,
+                    background: state === "recording" ? "#E05A34" : "#1D9E75",
+                    transition: "width 0.25s linear",
+                  }}
+                />
               </div>
             </div>
 
@@ -201,13 +317,32 @@ export default function RecordVouchPage() {
                 {staticWave.map((h, i) => {
                   const pct = (i / staticWave.length) * 100;
                   return (
-                    <div key={i} className="flex-1 rounded-full" style={{ height: `${h * 1.5}px`, background: pct <= progressPct ? (state === "recording" ? "#E05A34" : "#1D9E75") : "#E8E6DF" }}/>
+                    <div
+                      key={i}
+                      className="flex-1 rounded-full"
+                      style={{
+                        height:     `${h * 1.5}px`,
+                        background: pct <= progressPct
+                          ? (state === "recording" ? "#E05A34" : "#1D9E75")
+                          : "#E8E6DF",
+                      }}
+                    />
                   );
                 })}
               </div>
             )}
 
-            <button onClick={handleRecord} className="w-24 h-24 rounded-full flex items-center justify-center" style={{ background: state === "recording" ? "#E05A34" : "#0F6E56", boxShadow: state === "recording" ? "0 0 0 16px rgba(224,90,52,0.1), 0 4px 20px rgba(224,90,52,0.3)" : "0 4px 24px rgba(15,110,86,0.3)", transition: "all 0.2s ease" }}>
+            <button
+              onClick={handleRecord}
+              className="w-24 h-24 rounded-full flex items-center justify-center"
+              style={{
+                background:  state === "recording" ? "#E05A34" : "#0F6E56",
+                boxShadow:   state === "recording"
+                  ? "0 0 0 16px rgba(224,90,52,0.1), 0 4px 20px rgba(224,90,52,0.3)"
+                  : "0 4px 24px rgba(15,110,86,0.3)",
+                transition: "all 0.2s ease",
+              }}
+            >
               {state === "done" ? (
                 <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               ) : state === "recording" ? (
@@ -217,14 +352,36 @@ export default function RecordVouchPage() {
               )}
             </button>
 
+            {/* Transcript preview — visible in done state */}
             {state === "done" && (
-              <div className="flex gap-3 w-full">
-                <button onClick={() => { setState("idle"); setSeconds(0); }} className="btn-ghost flex-1 py-3">Retake</button>
-                <button onClick={handleSubmit} disabled={loading} className="btn-primary flex-1 py-3">{loading ? "Submitting…" : "Submit vouch"}</button>
+              <div className="w-full rounded-xl p-4" style={{ background: "#F4F3EE", border: "1px solid #E8E6DF" }}>
+                <p className="text-xs font-semibold text-muted uppercase tracking-wide mb-2">Transcript</p>
+                {transcribing ? (
+                  <p className="text-sm text-muted">Transcribing…</p>
+                ) : transcript ? (
+                  <p className="text-sm leading-relaxed" style={{ color: "#1C1B18" }}>{transcript}</p>
+                ) : (
+                  <p className="text-sm text-muted italic">No transcript — backend will use neutral AI scores.</p>
+                )}
               </div>
             )}
 
-            <p className="text-xs text-muted text-center max-w-xs leading-relaxed">Your voice note will be transcribed and analysed by AI. Signals are extracted to build an honest, verifiable trust profile.</p>
+            {state === "done" && (
+              <div className="flex gap-3 w-full">
+                <button onClick={handleRetake} className="btn-ghost flex-1 py-3">Retake</button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading || transcribing}
+                  className="btn-primary flex-1 py-3"
+                >
+                  {loading ? "Uploading…" : transcribing ? "Transcribing…" : "Submit vouch"}
+                </button>
+              </div>
+            )}
+
+            <p className="text-xs text-muted text-center max-w-xs leading-relaxed">
+              Your voice note will be transcribed and analysed by AI. Signals are extracted to build an honest, verifiable trust profile.
+            </p>
           </div>
         </div>
       </div>
