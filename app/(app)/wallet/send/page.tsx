@@ -49,14 +49,15 @@ export default function SendMoneyPage() {
         amount: parseInt(amount),
         note,
       });
-      if (!res.success) {
+      if (!res || (!res.success && !res.status)) {
         throw new Error("Transfer failed");
       }
 
       setTxRef(res.data.transactionReference || "");
 
       if (res.data.pending) {
-        setError("Transfer is still processing...");
+        setTxRef(res.data.requery?.transaction_reference || "");
+        setStep("done");
         return;
       }
 
@@ -76,7 +77,7 @@ export default function SendMoneyPage() {
     walletAPI
       .banks()
       .then((res) => {
-        setBanks(res.data || []);
+        setBanks(Array.isArray(res.data) ? res.data : []);
       })
       .catch(console.error);
   }, []);
